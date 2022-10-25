@@ -17,11 +17,17 @@ public class Jeremy : MonoBehaviour {
     [SerializeField] public float fallMultiplier = 4f;                              // Affects falling speed
     [SerializeField] public float lowJumpMultiplier = 2f;                           // Affects speed during the ascension of a jump
     [SerializeField] private float speedMod = 1f;                                   // Affects the horizontal speed
+    [SerializeField] public Color green;
+    [SerializeField] public Color brown;
+    [SerializeField] public Color gold;
 
     [Header("References")]
     public Animator animator;                       // The player's animator
     public Rigidbody2D rb;                          // The player's rigidbody
     public InputManager im;                         // The InputManager
+    public Material crownColor;
+    public ParticleSystem jumpEffect1;
+    public ParticleSystem jumpEffect2;
 
     private const float k_GroundedRadius = .1f;     // Radius of the overlap circle to determine if grounded
     public bool grounded;                           // Whether the player is grounded.
@@ -33,18 +39,27 @@ public class Jeremy : MonoBehaviour {
     private bool jumpWhenReady = false;
     private bool canMove = true;                    // Whether the player is allowed to move
     private Vector3 velocity = Vector3.zero;        // Serves as a default reference velocity
+    private int extraJumps = 0;
+    private Transform spawnPoint;
 
 
     private void Update() {
+        if (transform.position.y < -6) {
+            rb.velocity = Vector2.zero;
+            transform.SetPositionAndRotation(spawnPoint.position, Quaternion.identity);
+        }
+
+
+
         wasGrounded = grounded;
         grounded = false;
-
         // The player is grounded if a circlecast to the groundcheck position hits anything designated as ground
         Collider2D[] colliders = Physics2D.OverlapCircleAll(groundCheck.position, k_GroundedRadius, whatIsGround);
         for (int i = 0; i < colliders.Length; i++) {
             if (colliders[i].gameObject != gameObject) {
                 grounded = true;
                 if (!wasGrounded) {
+                    jumpEffect1.Play();
                     if (jumpWhenReady) {
                         jumpWhenReady = false;
                         Jump(jumpVelocity);
@@ -67,6 +82,10 @@ public class Jeremy : MonoBehaviour {
         if (wasGrounded && !grounded && !isJumping) {
             StartCoroutine(JumpDelay());
         }
+    }
+
+    private void Start() {
+        crownColor.SetColor("_CrownColor", brown);
     }
 
     public void Move(float move, bool jump, bool jumpCancel) {
@@ -107,10 +126,19 @@ public class Jeremy : MonoBehaviour {
                 isJumping = true;
 
             // If the player should jump...
-            if (canJump && jump)
-                Jump(jumpVelocity); // Jump
-            else if (!canJump && jump)
-                StartCoroutine(BufferJump());
+            if (jump) {
+                if (canJump) {
+                    Jump(jumpVelocity); // Jump
+                    jumpEffect1.Play();
+                } else if (extraJumps > 0) {
+                    Jump(jumpVelocity); // Jump
+                    crownColor.SetColor("_CrownColor", brown);
+                    extraJumps--;
+                    jumpEffect2.Play();
+                } else
+                    StartCoroutine(BufferJump());
+            }
+            
         }
     }
 
@@ -141,5 +169,14 @@ public class Jeremy : MonoBehaviour {
         jumpWhenReady = true;
         yield return new WaitForSeconds(.07f);
         jumpWhenReady = false;
+    }
+
+    public void GreenCandy() {
+        crownColor.SetColor("_CrownColor", green);
+        extraJumps = 1;
+    }
+
+    public void Loot(Transform t) {
+        spawnPoint = t;
     }
 }
