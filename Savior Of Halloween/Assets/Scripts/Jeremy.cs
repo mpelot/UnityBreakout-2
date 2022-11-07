@@ -6,7 +6,8 @@ public class Jeremy : MonoBehaviour {
 
     [Header("Position and Layer Checks")]
     [SerializeField] private LayerMask whatIsGround;
-    [SerializeField] private Transform groundCheck;                            // A position marking where to check if the player is grounded.
+    [SerializeField] private Transform groundCheckFront;                            // A position marking where to check if the player is grounded.
+    [SerializeField] private Transform groundCheckBack;
 
     [Header("Attributes")]
     [SerializeField] public bool hasControl;
@@ -28,6 +29,13 @@ public class Jeremy : MonoBehaviour {
     public Material crownColor;
     public ParticleSystem jumpEffect1;
     public ParticleSystem jumpEffect2;
+    public ParticleSystem runEffect;
+    public SoundManager sm;
+    public AudioClip[] steps;
+    public AudioClip jump;
+    public AudioClip land;
+    public AudioClip candy;
+    public AudioClip trill;
 
     private const float k_GroundedRadius = .1f;     // Radius of the overlap circle to determine if grounded
     public bool grounded;                           // Whether the player is grounded.
@@ -41,32 +49,47 @@ public class Jeremy : MonoBehaviour {
     private Vector3 velocity = Vector3.zero;        // Serves as a default reference velocity
     private int extraJumps = 0;
     private Transform spawnPoint;
-
+    private ArrayList candies;
 
     private void Update() {
-        if (transform.position.y < -6) {
+        if (transform.position.y < -10) {
             rb.velocity = Vector2.zero;
             transform.SetPositionAndRotation(spawnPoint.position, Quaternion.identity);
+            foreach (GreenCandy candy in candies) {
+                candy.Refresh();
+            }
+            extraJumps = 1;
+            crownColor.SetColor("_CrownColor", brown);
         }
-
-
 
         wasGrounded = grounded;
         grounded = false;
         // The player is grounded if a circlecast to the groundcheck position hits anything designated as ground
-        Collider2D[] colliders = Physics2D.OverlapCircleAll(groundCheck.position, k_GroundedRadius, whatIsGround);
+        Collider2D[] cBack = Physics2D.OverlapCircleAll(groundCheckBack.position, k_GroundedRadius, whatIsGround);
+        Collider2D[] cFront = Physics2D.OverlapCircleAll(groundCheckFront.position, k_GroundedRadius, whatIsGround);
+        Collider2D[] colliders = new Collider2D[cFront.Length + cBack.Length];
+        cFront.CopyTo(colliders, 0);
+        cBack.CopyTo(colliders, cFront.Length);
         for (int i = 0; i < colliders.Length; i++) {
-            if (colliders[i].gameObject != gameObject) {
+            if (colliders[i].gameObject != gameObject && rb.velocity.y < 0.01f) {
                 grounded = true;
                 if (!wasGrounded) {
                     jumpEffect1.Play();
+                    sm.PlaySound(land);
+                    foreach (GreenCandy candy in candies) {
+                        candy.RefreshAura();
+                    }
                     if (jumpWhenReady) {
                         jumpWhenReady = false;
                         Jump(jumpVelocity);
                     } else {
                         animator.SetBool("Jumping", false);
+                        //if (rb.velocity.y > 0.01f)
+                            //rb.velocity = new Vector2(rb.velocity.x, 0f);
                     }
+
                     animator.SetBool("Falling", false);
+                    break;
                 }
             }
         }
@@ -86,6 +109,7 @@ public class Jeremy : MonoBehaviour {
 
     private void Start() {
         crownColor.SetColor("_CrownColor", brown);
+        candies = new ArrayList();
     }
 
     public void Move(float move, bool jump, bool jumpCancel) {
@@ -135,10 +159,12 @@ public class Jeremy : MonoBehaviour {
                     crownColor.SetColor("_CrownColor", brown);
                     extraJumps--;
                     jumpEffect2.Play();
+                    foreach (GreenCandy candy in candies) {
+                        candy.Refresh();
+                    }
                 } else
                     StartCoroutine(BufferJump());
             }
-            
         }
     }
 
@@ -149,6 +175,9 @@ public class Jeremy : MonoBehaviour {
         Vector3 theScale = transform.localScale;
         theScale.x *= -1;
         transform.localScale = theScale;
+        theScale = runEffect.transform.localScale;
+        theScale.x *= -1;
+        runEffect.transform.localScale = theScale;
     }
 
     void Jump(float jumpVelocity) {
@@ -158,6 +187,13 @@ public class Jeremy : MonoBehaviour {
         rb.AddForce(Vector2.up * jumpVelocity, ForceMode2D.Impulse);
         animator.SetBool("Jumping", true);
         animator.SetBool("Falling", false);
+        sm.PlaySound(jump);
+    }
+
+    public void PlayRunEffect() {
+        runEffect.Play();
+        int num = Random.Range(0, 3);
+        sm.PlaySound(steps[num]);
     }
 
     IEnumerator JumpDelay() {
@@ -171,12 +207,20 @@ public class Jeremy : MonoBehaviour {
         jumpWhenReady = false;
     }
 
-    public void GreenCandy() {
+    public void GCandy(GreenCandy gc) {
+        candies.Add(gc);
         crownColor.SetColor("_CrownColor", green);
         extraJumps = 1;
+        sm.PlaySound(candy);
+        if (grounded) {
+            foreach (GreenCandy candy in candies) {
+                candy.RefreshAura();
+            }
+        }
     }
 
     public void Loot(Transform t) {
         spawnPoint = t;
+        sm.PlaySound(trill);
     }
 }
